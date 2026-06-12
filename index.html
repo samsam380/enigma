@@ -136,7 +136,7 @@
         <p class="eyebrow">Step 2 · crack the message</p>
         <h2>Brute force the rotor starts</h2>
         <p>
-          The visitor now becomes the codebreaker. The game tries a setting, decrypts the intercepted text, checks whether it contains the clue, then rejects bad candidates and keeps going.
+          The visitor now becomes the codebreaker. The game tries a setting, decrypts the intercepted text, scores it against reusable crib words, then rejects bad candidates and keeps going.
         </p>
       </div>
 
@@ -144,14 +144,38 @@
         <div class="intercept-panel">
           <span class="result-label">Intercepted ciphertext</span>
           <p id="challengeCipher" class="cipher-text">Loading…</p>
+          <label>
+            Challenge plaintext <span class="muted">encrypted with the hidden starting key</span>
+            <textarea id="challengePlainInput" rows="3" maxlength="180">THE FLEET WILL ATTACK AT DAWN</textarea>
+          </label>
+          <button class="button secondary wide-button" id="applyChallengeBtn" type="button">Use this message</button>
+
           <div class="clue-box">
-            <strong>Known clue / crib</strong>
-            <span>The real message contains the word <b>DAWN</b>.</span>
+            <div class="clue-heading">
+              <strong>Known words / cribs</strong>
+              <span><b id="cribCount">3</b> active</span>
+            </div>
+            <p id="cribSummary">Looking for FLEET + ATTACK + DAWN</p>
+            <div class="crib-list" id="cribList" aria-label="Active crib words"></div>
+            <div class="crib-entry">
+              <label>
+                Add crib words
+                <input id="cribInput" placeholder="Example: convoy weather dawn" autocomplete="off" />
+              </label>
+              <button class="button ghost" id="addCribBtn" type="button">Add</button>
+            </div>
+            <label>
+              Match rule
+              <select id="matchMode">
+                <option value="all">Require every active crib</option>
+                <option value="any">Stop on any active crib</option>
+              </select>
+            </label>
           </div>
           <div class="button-row">
             <button class="button primary" id="startCrackBtn" type="button">Start brute force</button>
             <button class="button secondary" id="pauseCrackBtn" type="button">Pause</button>
-            <button class="button ghost" id="resetCrackBtn" type="button">Reset challenge</button>
+            <button class="button ghost" id="resetCrackBtn" type="button">Reset scan</button>
           </div>
           <label class="speed-control">
             Speed
@@ -180,6 +204,10 @@
               <small>Status</small>
               <strong id="crackStatus">Ready</strong>
             </div>
+            <div>
+              <small>Best crib score</small>
+              <strong id="bestScore">0 / 3</strong>
+            </div>
           </div>
 
           <div class="scan-window" id="scanWindow" aria-live="polite"></div>
@@ -203,7 +231,7 @@
       <article class="card mini-lesson">
         <span class="lesson-number">02</span>
         <h3>Brute force is organized guessing</h3>
-        <p>A computer can try AAA, AAB, AAC… then decrypt each candidate and look for a sign of meaning, such as a known word.</p>
+        <p>A computer can try AAA, AAB, AAC… then decrypt each candidate and score it against one or many known words supplied by the player.</p>
       </article>
       <article class="card mini-lesson">
         <span class="lesson-number">03</span>

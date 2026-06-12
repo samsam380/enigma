@@ -6,7 +6,8 @@ const ROTORS = {
 };
 const REFLECTOR_B = "YRUHQSLDPXNGOKMIEBFZCWVJAT";
 const TOTAL_KEYS = 26 * 26 * 26;
-const CHALLENGE_PLAIN = "THE FLEET WILL ATTACK AT DAWN";
+const DEFAULT_CHALLENGE_PLAIN = "THE FLEET WILL ATTACK AT DAWN";
+const DEFAULT_CRIBS = ["FLEET", "ATTACK", "DAWN"];
 const SECRET_START = [12, 4, 19]; // M E T
 
 const els = {
@@ -25,6 +26,15 @@ const els = {
   middleWindow: document.getElementById("middleWindow"),
   rightWindow: document.getElementById("rightWindow"),
   challengeCipher: document.getElementById("challengeCipher"),
+  challengePlainInput: document.getElementById("challengePlainInput"),
+  applyChallengeBtn: document.getElementById("applyChallengeBtn"),
+  cribInput: document.getElementById("cribInput"),
+  addCribBtn: document.getElementById("addCribBtn"),
+  cribList: document.getElementById("cribList"),
+  cribSummary: document.getElementById("cribSummary"),
+  cribCount: document.getElementById("cribCount"),
+  matchMode: document.getElementById("matchMode"),
+  bestScore: document.getElementById("bestScore"),
   startCrackBtn: document.getElementById("startCrackBtn"),
   pauseCrackBtn: document.getElementById("pauseCrackBtn"),
   resetCrackBtn: document.getElementById("resetCrackBtn"),
@@ -43,7 +53,10 @@ const els = {
 
 let machineCursor = 0;
 let lastCipher = "";
+let challengePlain = DEFAULT_CHALLENGE_PLAIN;
 let challengeCipher = "";
+let activeCribs = [...DEFAULT_CRIBS];
+let bestMatchCount = 0;
 let crackIndex = 0;
 let crackRunning = false;
 let rafId = null;
@@ -275,25 +288,95 @@ function keyToString(positions) {
   return positions.map(indexToLetter).join("");
 }
 
+function parseCribs(raw) {
+  const words = (raw || "").toUpperCase().match(/[A-Z]{2,}/g) || [];
+  return [...new Set(words)];
+}
+
 function createChallenge() {
-  challengeCipher = enigmaText(CHALLENGE_PLAIN, SECRET_START).output;
+  const cleanPlain = sanitize(challengePlain) || sanitize(DEFAULT_CHALLENGE_PLAIN);
+  challengeCipher = enigmaText(cleanPlain, SECRET_START).output;
   els.challengeCipher.textContent = groupsOfFive(challengeCipher);
 }
 
-function addScanRow(key, text, hit = false) {
+function renderCribs() {
+  els.cribList.innerHTML = "";
+  activeCribs.forEach(crib => {
+    const chip = document.createElement("button");
+    chip.className = "crib-chip";
+    chip.type = "button";
+    chip.setAttribute("aria-label", `Remove crib ${crib}`);
+    chip.textContent = `${crib} ×`;
+    chip.addEventListener("click", () => {
+      activeCribs = activeCribs.filter(item => item !== crib);
+      renderCribs();
+      resetCrack();
+    });
+    els.cribList.appendChild(chip);
+  });
+
+  const count = activeCribs.length;
+  els.cribCount.textContent = count.toString();
+  els.cribSummary.textContent = count
+    ? `Looking for ${activeCribs.join(els.matchMode.value === "all" ? " + " : " or ")}`
+    : "Add at least one known word before scanning.";
+  els.startCrackBtn.disabled = count === 0;
+}
+
+function addCribsFromInput() {
+  const nextCribs = parseCribs(els.cribInput.value);
+  if (!nextCribs.length) return;
+  activeCribs = [...new Set([...activeCribs, ...nextCribs])];
+  els.cribInput.value = "";
+  renderCribs();
+  resetCrack();
+}
+
+function applyChallengeText() {
+  const cleanPlain = sanitize(els.challengePlainInput.value);
+  challengePlain = cleanPlain || DEFAULT_CHALLENGE_PLAIN;
+  resetCrack();
+}
+
+function scorePlaintext(plain) {
+  const matched = activeCribs.filter(crib => plain.includes(crib));
+  const found = activeCribs.length > 0 && (els.matchMode.value === "all"
+    ? matched.length === activeCribs.length
+    : matched.length > 0);
+  return { matched, found };
+}
+
+function addScanRow(key, text, matched = [], hit = false) {
   const row = document.createElement("div");
   row.className = `scan-row ${hit ? "hit" : ""}`;
-  row.innerHTML = `<strong>${key}</strong><span>${groupsOfFive(text).slice(0, 72)}</span>`;
+
+  const keyEl = document.createElement("strong");
+  keyEl.textContent = key;
+
+  const textEl = document.createElement("span");
+  textEl.textContent = groupsOfFive(text).slice(0, 72);
+
+  const clueEl = document.createElement("em");
+  clueEl.textContent = matched.length ? `matched: ${matched.join(", ")}` : "—";
+
+  row.append(keyEl, textEl, clueEl);
   els.scanWindow.prepend(row);
   while (els.scanWindow.childElementCount > 14) {
     els.scanWindow.removeChild(els.scanWindow.lastElementChild);
   }
 }
 
+function updateBestScore(matched) {
+  if (matched.length <= bestMatchCount) return;
+  bestMatchCount = matched.length;
+  els.bestScore.textContent = `${bestMatchCount} / ${activeCribs.length}`;
+}
+
 function updateCrackUi() {
   els.attemptCounter.textContent = `${Math.min(crackIndex, TOTAL_KEYS).toLocaleString()} / ${TOTAL_KEYS.toLocaleString()}`;
   els.rejectedCount.textContent = Math.max(0, crackIndex - 1).toLocaleString();
   els.progressFill.style.width = `${Math.min(100, (crackIndex / TOTAL_KEYS) * 100)}%`;
+  els.bestScore.textContent = `${bestMatchCount} / ${activeCribs.length}`;
 }
 
 function bruteForceFrame() {
@@ -306,19 +389,22 @@ function bruteForceFrame() {
     const plain = enigmaText(challengeCipher, candidate).output;
 
     els.currentKey.textContent = key;
-    if (crackIndex % Math.max(1, Math.floor(400 / triesPerFrame)) === 0) {
-      addScanRow(key, plain);
+    const score = scorePlaintext(plain);
+    updateBestScore(score.matched);
+
+    if (crackIndex % Math.max(1, Math.floor(400 / triesPerFrame)) === 0 || score.matched.length) {
+      addScanRow(key, plain, score.matched);
     }
 
     crackIndex += 1;
 
-    if (plain.includes("DAWN") && plain.includes("ATTACK")) {
+    if (score.found) {
       crackRunning = false;
       els.crackStatus.textContent = "Found";
-      addScanRow(key, plain, true);
+      addScanRow(key, plain, score.matched, true);
       els.foundPanel.classList.remove("hidden");
       els.foundText.textContent = groupsOfFive(plain);
-      els.foundKey.textContent = `Starting rotor key: ${key}. The game did not “understand” the message; it simply tried keys until the decrypted text matched the clue.`;
+      els.foundKey.textContent = `Starting rotor key: ${key}. Matched ${score.matched.join(", ")} using ${els.matchMode.value.toUpperCase()} mode; the game did not “understand” the message, it tested reusable cribs against each candidate plaintext.`;
       els.startCrackBtn.disabled = false;
       cancelAnimationFrame(rafId);
       updateCrackUi();
@@ -340,6 +426,10 @@ function bruteForceFrame() {
 
 function startCrack() {
   if (crackRunning) return;
+  if (!activeCribs.length) {
+    els.crackStatus.textContent = "Needs clues";
+    return;
+  }
   crackRunning = true;
   els.crackStatus.textContent = "Scanning";
   els.startCrackBtn.disabled = true;
@@ -359,8 +449,11 @@ function resetCrack() {
   crackIndex = 0;
   els.scanWindow.innerHTML = "";
   els.currentKey.textContent = "AAA";
+  bestMatchCount = 0;
   els.rejectedCount.textContent = "0";
-  els.crackStatus.textContent = "Ready";
+  els.bestScore.textContent = `0 / ${activeCribs.length}`;
+  els.crackStatus.textContent = activeCribs.length ? "Ready" : "Needs clues";
+  els.startCrackBtn.disabled = activeCribs.length === 0;
   els.foundPanel.classList.add("hidden");
   updateCrackUi();
   createChallenge();
@@ -372,6 +465,19 @@ function wireEvents() {
   els.resetBtn.addEventListener("click", resetMachine);
   [els.rotorLeft, els.rotorMiddle, els.rotorRight].forEach(select => {
     select.addEventListener("change", () => updateRotorWindows(getSelectedPositions()));
+  });
+
+  els.addCribBtn.addEventListener("click", addCribsFromInput);
+  els.cribInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addCribsFromInput();
+    }
+  });
+  els.applyChallengeBtn.addEventListener("click", applyChallengeText);
+  els.matchMode.addEventListener("change", () => {
+    renderCribs();
+    resetCrack();
   });
 
   els.startCrackBtn.addEventListener("click", startCrack);
@@ -386,6 +492,8 @@ function init() {
   populateRotorSelectors();
   buildLampboard();
   setSelectedPositions([0, 0, 0]);
+  els.challengePlainInput.value = challengePlain;
+  renderCribs();
   createChallenge();
   updateCrackUi();
   wireEvents();
