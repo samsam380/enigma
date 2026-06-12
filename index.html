@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enigma Brute Force Lab</title>
+  <meta name="description" content="An interactive minimalist Enigma machine game that teaches how brute forcing works." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Enigma Brute Force Lab home">
+      <span class="brand-mark">E</span>
+      <span>
+        <strong>Enigma Brute Force Lab</strong>
+        <small>learn the crack, not just the machine</small>
+      </span>
+    </a>
+    <nav aria-label="Page navigation">
+      <a href="#machine">Machine</a>
+      <a href="#crack">Crack</a>
+      <a href="#lesson">Lesson</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero section-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Interactive cryptography game</p>
+        <h1>Turn a secret message into an <span>“aha!”</span> moment.</h1>
+        <p class="lede">
+          Type a message, watch it travel through rotors, then crack an intercepted message by trying every possible starting position until readable text appears.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#machine">Start encrypting</a>
+          <a class="button ghost" href="#crack">Try brute force</a>
+        </div>
+      </div>
+      <div class="hero-panel" aria-label="Game concept summary">
+        <div class="stat-card">
+          <span class="stat-label">Teaching keyspace</span>
+          <strong>26³</strong>
+          <small>17,576 rotor starts</small>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Goal</span>
+          <strong>Aha</strong>
+          <small>try → decrypt → score → repeat</small>
+        </div>
+        <div class="signal-preview" aria-hidden="true">
+          <span>A</span><i></i><span>RⅢ</span><i></i><span>RⅡ</span><i></i><span>RⅠ</span><i></i><span>↩</span><i></i><span>Q</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="machine" class="card lab-card">
+      <div class="section-heading">
+        <p class="eyebrow">Step 1 · operate the machine</p>
+        <h2>Encrypt and watch the signal path</h2>
+        <p>
+          This is a teaching model inspired by Enigma I: three rotors, a reflector, and an optional plugboard. The right rotor steps on every letter, so the same input letter can encrypt differently each time.
+        </p>
+      </div>
+
+      <div class="workspace">
+        <form class="control-panel" id="machineForm">
+          <label>
+            Message
+            <textarea id="messageInput" rows="4" maxlength="160">ATTACK AT DAWN</textarea>
+          </label>
+
+          <div class="rotor-controls" aria-label="Rotor starting positions">
+            <label>Left rotor
+              <select id="rotorLeft"></select>
+            </label>
+            <label>Middle rotor
+              <select id="rotorMiddle"></select>
+            </label>
+            <label>Right rotor
+              <select id="rotorRight"></select>
+            </label>
+          </div>
+
+          <label>
+            Plugboard pairs <span class="muted">optional</span>
+            <input id="plugboardInput" placeholder="Example: AV BS CG" autocomplete="off" />
+          </label>
+
+          <div class="button-row">
+            <button class="button primary" type="submit">Encrypt message</button>
+            <button class="button secondary" id="oneStepBtn" type="button">Encrypt one letter</button>
+            <button class="button ghost" id="resetBtn" type="button">Reset</button>
+          </div>
+        </form>
+
+        <div class="machine-visual" aria-live="polite">
+          <div class="rotor-window" aria-label="Current rotor windows">
+            <div><small>Left</small><strong id="leftWindow">A</strong></div>
+            <div><small>Middle</small><strong id="middleWindow">A</strong></div>
+            <div><small>Right</small><strong id="rightWindow">A</strong></div>
+          </div>
+
+          <div class="path-board" id="pathBoard" aria-label="Signal path visualization">
+            <div class="path-node" data-node="input"><small>Input</small><strong>—</strong></div>
+            <div class="path-node" data-node="plugIn"><small>Plugboard</small><strong>—</strong></div>
+            <div class="path-node rotor" data-node="r3f"><small>Rotor III</small><strong>—</strong></div>
+            <div class="path-node rotor" data-node="r2f"><small>Rotor II</small><strong>—</strong></div>
+            <div class="path-node rotor" data-node="r1f"><small>Rotor I</small><strong>—</strong></div>
+            <div class="path-node reflector" data-node="reflect"><small>Reflector</small><strong>—</strong></div>
+            <div class="path-node rotor" data-node="r1b"><small>Rotor I</small><strong>—</strong></div>
+            <div class="path-node rotor" data-node="r2b"><small>Rotor II</small><strong>—</strong></div>
+            <div class="path-node rotor" data-node="r3b"><small>Rotor III</small><strong>—</strong></div>
+            <div class="path-node" data-node="plugOut"><small>Plugboard</small><strong>—</strong></div>
+            <div class="path-node output" data-node="output"><small>Lamp</small><strong>—</strong></div>
+          </div>
+
+          <div class="lampboard" id="lampboard" aria-label="Enigma lampboard"></div>
+        </div>
+      </div>
+
+      <div class="output-grid">
+        <div class="result-box">
+          <span class="result-label">Ciphertext</span>
+          <output id="cipherOutput">—</output>
+        </div>
+        <div class="result-box">
+          <span class="result-label">Last signal lesson</span>
+          <output id="signalLesson">Press encrypt to see one letter become another through a changing path.</output>
+        </div>
+      </div>
+    </section>
+
+    <section id="crack" class="card crack-card">
+      <div class="section-heading">
+        <p class="eyebrow">Step 2 · crack the message</p>
+        <h2>Brute force the rotor starts</h2>
+        <p>
+          The visitor now becomes the codebreaker. The game tries a setting, decrypts the intercepted text, checks whether it contains the clue, then rejects bad candidates and keeps going.
+        </p>
+      </div>
+
+      <div class="crack-layout">
+        <div class="intercept-panel">
+          <span class="result-label">Intercepted ciphertext</span>
+          <p id="challengeCipher" class="cipher-text">Loading…</p>
+          <div class="clue-box">
+            <strong>Known clue / crib</strong>
+            <span>The real message contains the word <b>DAWN</b>.</span>
+          </div>
+          <div class="button-row">
+            <button class="button primary" id="startCrackBtn" type="button">Start brute force</button>
+            <button class="button secondary" id="pauseCrackBtn" type="button">Pause</button>
+            <button class="button ghost" id="resetCrackBtn" type="button">Reset challenge</button>
+          </div>
+          <label class="speed-control">
+            Speed
+            <input type="range" id="speedSlider" min="1" max="200" value="80" />
+            <span id="speedLabel">80 tries/frame</span>
+          </label>
+        </div>
+
+        <div class="bruteforce-panel">
+          <div class="progress-line">
+            <span>Attempts</span>
+            <strong id="attemptCounter">0 / 17,576</strong>
+          </div>
+          <div class="progress-bar" aria-hidden="true"><i id="progressFill"></i></div>
+
+          <div class="candidate-grid">
+            <div>
+              <small>Trying key</small>
+              <strong id="currentKey">AAA</strong>
+            </div>
+            <div>
+              <small>Rejected</small>
+              <strong id="rejectedCount">0</strong>
+            </div>
+            <div>
+              <small>Status</small>
+              <strong id="crackStatus">Ready</strong>
+            </div>
+          </div>
+
+          <div class="scan-window" id="scanWindow" aria-live="polite"></div>
+
+          <div class="found-panel hidden" id="foundPanel">
+            <span class="success-badge">Aha!</span>
+            <h3>Readable text found</h3>
+            <p id="foundText"></p>
+            <p class="muted" id="foundKey"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="lesson" class="lesson-grid">
+      <article class="card mini-lesson">
+        <span class="lesson-number">01</span>
+        <h3>Encryption is a machine state</h3>
+        <p>The same letter does not always produce the same output because the rotors move. The key is not just the wiring—it is the starting state.</p>
+      </article>
+      <article class="card mini-lesson">
+        <span class="lesson-number">02</span>
+        <h3>Brute force is organized guessing</h3>
+        <p>A computer can try AAA, AAB, AAC… then decrypt each candidate and look for a sign of meaning, such as a known word.</p>
+      </article>
+      <article class="card mini-lesson">
+        <span class="lesson-number">03</span>
+        <h3>Keyspace creates friction</h3>
+        <p>This game only brute-forces 26³ rotor starts. Real wartime Enigma also involved rotor order, rings, plugboard settings, procedure mistakes, and cribs.</p>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Built as a simplified educational simulator. Minimal theme color: <code>#0D3643</code>.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
